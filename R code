@@ -1,0 +1,120 @@
+rm(list=ls())
+# set working directory
+setwd("~/Dropbox/MKT412/W3 ins-STATS")
+
+library(ggplot2)
+library(wordcloud)
+library(tm)
+
+#getting data from spss
+library(foreign)
+filnm = "Wegmans Survey"; #this is the name of the file
+WegmansLab <- read.spss(paste(filnm,".sav",sep=""),to.data.frame=TRUE,use.value.labels=TRUE,trim_values=TRUE)
+WegmansData <- read.spss(paste(filnm,".sav",sep=""),to.data.frame=TRUE,use.value.labels=FALSE) #turning values into numbers
+
+#Summarize to validate
+summary(WegmansLab)
+
+# Q1
+##1) Test whether sample matches with population for gender
+popSEX = c(.87,.13); #true population values: Female 87%
+WegmansData$Sex <- as.numeric(WegmansData$Question33Areyou) #create new value
+
+#drop obs with no gender info
+Gender <- WegmansData$Sex[WegmansData$Sex > 1 & WegmansData$Sex < 4]
+cbind(popSEX,prop.table(table(Gender))); #creating table as matrix
+chisq.test(table(Gender),p=popSEX)
+
+#weights, if reweighting
+w = popSEX/prop.table(table(Gender)); # w=P/M
+#setting weight for each response in sample
+wSamp = w[Gender]; #this command indexes into w for each response picking the right value
+
+# Q2 Create indexing for the average importance ratings
+df <- WegmansData[substr(colnames(WegmansData),1,9) == "Question6"] # create new data frame for Q6
+df <- df[, -1] # drop v1
+impvars <- c(substr(colnames(df),10,25)) # substring names
+df.impvars  <- setNames(df, impvars) # reset colnames
+
+impmeans <- colMeans(df.impvars, na.rm = TRUE) #Average Importance Ratings
+
+impse <- apply(df.impvars, 2, sd, na.rm = TRUE)/
+  sqrt(colSums(!is.na(df.impvars))) # SE
+
+ImpDF = data.frame(impmeans, impse)
+
+# Error Bar
+dodge <- position_dodge(width=.75); ##to form constant dimensions positioning for all geom's
+gi <- ggplot(ImpDF,aes(y=impmeans,x = impvars, ymax=impmeans+impse,ymin=impmeans-impse))
+gi + geom_bar(position=dodge,stat="identity",col=1,fill=2,width=.75) + 
+  geom_errorbar(position=dodge,width=1) + labs(x="Importance",y="Mean Rating (0-5)")
+
+
+
+## set the levels in order we want
+write.table(ImpDF, file = "Important Ratings.txt", sep = "\t");
+
+# Q4
+### For Fage
+df.Fage <- WegmansData[substr(colnames(WegmansData),1,10) == "Question24"] # create new data frame for Q24
+df.Fage <- df.Fage[, -1] # drop v1
+df.Fage.attr  <- setNames(df.Fage, c(substr(colnames(df.Fage),11,25))) # reset colnames by substring
+
+
+### For Oikos
+
+df.Oikos <- WegmansData[substr(colnames(WegmansData),1,10) == "Question30"] # create new data frame for Q24
+df.Oikos <- df.Oikos[, -1] # drop v1
+df.Oikos.attr  <- setNames(df.Oikos, c(substr(colnames(df.Oikos),11,25))) # reset colnames by substring
+
+
+## Do these brands differ from another
+# t test
+perfvar<- c("Taste", "Allnatural", "Price")
+
+for(i in 1:3){  #note 5 is how long perfVars and impVars are each
+  cat(paste("******",perfvar[i],"******"),fill=TRUE); #notice indexing into perfVarsf using i
+  #  print(tapply(spssData[,perfVars[i]],spssDataLab$sex,mean,na.rm=TRUE))
+  print(t.test(df.Fage.attr[perfvar[i]],df.Oikos.attr[perfvar[i]]), paired=TRUE)
+}
+
+# Q5
+## Chi-squared Test
+# Do people use Greek Yogurt for cooking rate higher the importance of all natural/organic/rbst free?
+# subset Q12 to the new table
+df.impvars$Cooking <- WegmansData$Question12DoyouuseGreekYogurtforcooking
+# convert empty to NA
+df.impvars$Cooking <- as.character(df.impvars$Cooking)
+df.impvars$Cooking[df.impvars$Cooking=="   "] <- NA
+df.impvars$Cooking <- as.factor(df.impvars$Cooking)
+
+imp.Var<- c("Allnatural", "rbSTfree", "Organic", "Price")
+
+for(i in 1:4){  #note 5 is how long perfVars and impVars are each
+  cat(paste("******",imp.Var[i],"******"),fill=TRUE); #notice indexing into perfVarsf using i
+  print(t.test(df.impvars[ , imp.Var[i]][df.impvars$Cooking=="Yes"],df.impvars[ , imp.Var[i]][df.impvars$Cooking=="No "]))
+}
+
+
+# appendix
+df.Fage.sel <- df.Fage.attr[, c("Allnatural", "Price", "Taste")] # select 3 varibles to compare
+
+Fage.means <- colMeans(df.Fage.sel, na.rm = TRUE) # average brand attribute ratings
+Fage.se <- apply(df.Fage.sel, 2, sd, na.rm = TRUE)/
+  sqrt(colSums(!is.na(df.Fage.sel))) # SE
+
+FageDF = data.frame(Fage.means, Fage.se)
+
+df.Oikos.sel <- df.Oikos.attr[, c("Allnatural", "Price", "Taste")] # select 3 varibles to compare
+
+Oikos.means <- colMeans(df.Oikos.sel, na.rm = TRUE) # average brand attribute ratings
+Oikos.se <- apply(df.Oikos.sel, 2, sd, na.rm = TRUE)/
+  sqrt(colSums(!is.na(df.Oikos.sel))) # SE
+
+OikosDF = data.frame(Oikos.means, Oikos.se)
+
+chisq.test(df.impvars$Cooking,df.impvars$Allnatural)
+
+table(df.impvars$Cooking,df.impvars$Allnatural)
+prop.table(table(f.impvars$Cooking,f.impvars$Allnatural),1) 
+
